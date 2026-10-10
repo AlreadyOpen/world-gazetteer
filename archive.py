@@ -57,16 +57,21 @@ def expected(k, files):
 
 
 def listed(slug):
-    """every file of a Kaggle dataset with its size, page by page (200 a page); never downloads anything"""
-    out, token = {}, None
+    """every file of a Kaggle dataset with its size, 200 a page (about 20 minutes for the 144k files of a full release);
+    None when there is no such dataset. Never downloads anything."""
+    from kaggle.api.kaggle_api_extended import KaggleApi
+    api = KaggleApi(); api.authenticate(); out, token = {}, None
     while True:
-        r = kaggle('files', slug, '--csv', '--page-size', '200', *(['--page-token', token] if token else []), capture_output=True, text=True)
-        if r.returncode != 0: return None
-        token = None
-        for line in r.stdout.splitlines():
-            if line.startswith('Next Page Token = '): token = line.split(' = ', 1)[1].strip()
-            elif line and not line.startswith('name,size'):
-                name, size, _ = line.rsplit(',', 2); out[name] = int(size)
+        for t in range(6):                                             # a page can fail on a busy API: retry before giving up
+            try:
+                r = api.dataset_list_files(slug, page_token=token, page_size=200); break
+            except Exception as e:
+                if not out and t == 0 and ('404' in str(e) or '403' in str(e)): return None
+                err = e; time.sleep(10 * (t + 1))
+        else:
+            sys.exit(f'{slug}: listing failed after {len(out)} files: {err}')
+        out.update({f.name: int(f.total_bytes) for f in r.files})
+        token = r.next_page_token
         if not token: return out
 
 
