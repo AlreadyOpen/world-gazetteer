@@ -9,7 +9,8 @@ against its published sha256, and derive the map files from it. Every file, row 
   divisions.parquet  GeoParquet, every administrative division (a point where it has coordinates), every field
   places.pmtiles     layer `places`, every settlement; the most populous from z2, everything by z10
   releases.json      every release published so far, with its Kaggle archive
-index.json: built, release, s_version, counts {country code: settlements} (the publish gate compares these per country).
+index.json: built, release, s_version, per_country {country code: settlements}, and counts, which the publish gate compares:
+  total, and each country that had at least GATE_MIN settlements in the previous release (small countries count in total only).
 When the release is the one already published, nothing is downloaded and the run is skipped (GITHUB_OUTPUT skip=true).
 Usage: python3 bake.py                     (COUNTRIES=HK,TW,PT for a test on a few countries; near/ is then left out)"""
 import concurrent.futures, datetime, glob, hashlib, json, os, shutil, subprocess, sys, time, urllib.error, urllib.request
@@ -25,6 +26,7 @@ UA = {'User-Agent': 'AlreadyOpen world-gazetteer (https://github.com/AlreadyOpen
 # population -> first zoom: the biggest cities from z2, every settlement (and those with no population) by z10
 ZOOMS = [(5_000_000, 2), (1_000_000, 3), (300_000, 4), (100_000, 5), (30_000, 6), (10_000, 7), (3_000, 8), (1_000, 9)]
 MAXZOOM = 10
+GATE_MIN = 1000
 
 
 def get(url, tries=5):
@@ -160,13 +162,15 @@ def main():
         if os.path.lexists(p): os.remove(p)
         os.symlink(os.path.join(root, f), p)
     counts, totals = derive(root)
+    prev = (old or {}).get('per_country') or counts                    # the first release gates against itself
     built = datetime.datetime.now().isoformat(timespec='seconds')
     entry = {'release': v, 'released': LATEST['released'], 's_version': LATEST['s_version'], 'built': built,
              'kaggle': f'https://www.kaggle.com/datasets/helenkwok/world-gazetteer-{v.lower()}', **totals}
     releases = [r for r in ((manifest.published(BUCKET + 'releases.json') or {}).get('releases') or []) if r['release'] != v]
     json.dump({'releases': releases + [entry]}, open(os.path.join(sources.OUT, 'releases.json'), 'w'), indent=1)
     out = {'built': built, 'release': v, 's_version': LATEST['s_version'], 'test_countries': ONLY or None,
-           'counts': counts, 'totals': totals}
+           'per_country': counts, 'counts': {'total': totals['places'],
+           **{c: n for c, n in counts.items() if prev.get(c, 0) >= GATE_MIN}}, 'totals': totals}   # a gated country gone: the gate catches it
     json.dump(out, open(os.path.join(sources.OUT, 'index.json'), 'w'), indent=1)
     print(json.dumps({k: out[k] for k in ('release', 'totals')}))
 

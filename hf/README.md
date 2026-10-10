@@ -28,11 +28,20 @@ only what a map needs, for the latest release:
 | `api/v1/countries.json` | PlaceDB's country list, as published |
 | `api/v1/ac/<CC>/<prefix>.json` | PlaceDB's prefix files for search as you type, as published; `api/v1/index.json` holds their sha256 |
 | `LIMITATIONS.md` | PlaceDB's own account of what the dataset does not do, at this release |
-| `index.json`, `releases.json` | This release's settlements per country; every release published so far |
+| `index.json`, `releases.json` | This release's settlements per country (`per_country`) and the counts the publish gate checks; every release published so far |
 
-The Kaggle archive also holds `release/` (PlaceDB's `manifest.json` with every file's sha256, `latest.json` naming the
-release, `LICENSE`, and `data/<CC>.ndjson`, `json/<CC>.json`, `csv/<CC>.csv` per country, plus `changes.json` and
-`changes.ndjson`) and the whole `api/v1/` tree (`regions/`, `cities/`, `iso/`, `near/`, `ac/`).
+The Kaggle archive of a release holds PlaceDB's own files as delivered, as a few plain files:
+
+| File | Holds |
+|---|---|
+| `release.tar` | `data/<CC>.ndjson`, `json/<CC>.json`, `csv/<CC>.csv` for every country (an uncompressed tar) |
+| `api.tar` | the placedb.org API files: `api/v1/index.json` (their sha256), `countries.json`, `changes.json`, `ac/`, `cities/`, `iso/`, `near/`, `regions/` (an uncompressed tar of about 143,000 files) |
+| `manifest.json` | PlaceDB's checksum list: every per-country file's sha256 and size |
+| `latest.json`, `LICENSE`, `changes.json`, `changes.ndjson` | the release's name and date, its CC0 licence, and what changed since the release before |
+
+plus `LIMITATIONS.md` and the derived files above. Extract a tar with `tar -xf release.tar` (or `tar -xf api.tar`), then
+check the files against `manifest.json` (or `api/v1/index.json`), for example
+`python3 -c "import hashlib,json;m=json.load(open('manifest.json'));print(all(hashlib.sha256(open(c['files'][k],'rb').read()).hexdigest()==c['sha256'][k] for c in m['countries'] for k in c['files']))"`.
 
 In the tiles, a place nearer a pole than 85.05 degrees sits at that latitude, since web maps stop there; its true
 `latitude` and `longitude` are fields.
