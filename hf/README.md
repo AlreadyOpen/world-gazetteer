@@ -30,7 +30,8 @@ only what a map needs, for the latest release:
 | `LIMITATIONS.md` | PlaceDB's own account of what the dataset does not do, at this release |
 | `index.json`, `releases.json` | This release's settlements per country (`per_country`) and the counts the publish gate checks; every release published so far |
 
-The Kaggle archive of a release holds PlaceDB's own files as delivered, as a few plain files:
+The Kaggle archive of a release holds PlaceDB's own files as delivered. They are uploaded as two tars, which Kaggle shows
+unpacked as the folders `release/` and `api/`; downloading the dataset gives them back as folders.
 
 | File | Holds |
 |---|---|
@@ -39,9 +40,9 @@ The Kaggle archive of a release holds PlaceDB's own files as delivered, as a few
 | `manifest.json` | PlaceDB's checksum list: every per-country file's sha256 and size |
 | `latest.json`, `LICENSE`, `changes.json`, `changes.ndjson` | the release's name and date, its CC0 licence, and what changed since the release before |
 
-plus `LIMITATIONS.md` and the derived files above. Extract a tar with `tar -xf release.tar` (or `tar -xf api.tar`), then
-check the files against `manifest.json` (or `api/v1/index.json`), for example
-`python3 -c "import hashlib,json;m=json.load(open('manifest.json'));print(all(hashlib.sha256(open(c['files'][k],'rb').read()).hexdigest()==c['sha256'][k] for c in m['countries'] for k in c['files']))"`.
+plus `LIMITATIONS.md` and the derived files above. If you have a tar rather than the folder, extract it with
+`tar -xf release.tar` (or `tar -xf api.tar`). Then check the files against `manifest.json` (or `api/v1/index.json`), for example from inside `release/`:
+`python3 -c "import hashlib,json;m=json.load(open('../manifest.json'));print(all(hashlib.sha256(open(c['files'][k],'rb').read()).hexdigest()==c['sha256'][k] for c in m['countries'] for k in c['files']))"`.
 
 In the tiles, a place nearer a pole than 85.05 degrees sits at that latitude, since web maps stop there; its true
 `latitude` and `longitude` are fields.
