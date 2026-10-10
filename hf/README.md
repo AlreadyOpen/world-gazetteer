@@ -40,7 +40,8 @@ unpacked as the folders `release/` and `api/`; downloading the dataset gives the
 | `manifest.json` | PlaceDB's checksum list: every per-country file's sha256 and size |
 | `latest.json`, `LICENSE`, `changes.json`, `changes.ndjson` | the release's name and date, its CC0 licence, and what changed since the release before |
 
-plus `LIMITATIONS.md` and the derived files above. If you have a tar rather than the folder, extract it with
+plus `LIMITATIONS.md` and the derived files above. A release's Kaggle archive is never changed after it is made, so its derived files come from
+the first bake of that release; Hugging Face carries the current bake's. If you have a tar rather than the folder, extract it with
 `tar -xf release.tar` (or `tar -xf api.tar`). Then check the files against `manifest.json` (or `api/v1/index.json`), for example from inside `release/`:
 `python3 -c "import hashlib,json;m=json.load(open('../manifest.json'));print(all(hashlib.sha256(open(c['files'][k],'rb').read()).hexdigest()==c['sha256'][k] for c in m['countries'] for k in c['files']))"`.
 

@@ -8,7 +8,8 @@ Kaggle gets few, plain files (never 143k small ones), staged in data/out/kaggle/
 Kaggle unpacks the tars into folders (release/, api/). Once Kaggle says the dataset is ready, its file list (names and
 sizes, never a download) must match the staged files and the tars' members exactly; only then does it write
 kaggle-verified.json, which publish.py needs before it replaces the previous release on Hugging Face. A dataset that
-already exists is never re-uploaded, versioned or deleted: if it matches, the run goes on to publish; if not, it stops. Needs KAGGLE_API_TOKEN in the environment (never on argv).
+already exists is never re-uploaded, versioned or deleted: if PlaceDB's files in it match, the run goes on to publish (its
+derived files, from the first bake, may differ by a few bytes: logged, not checked); if not, it stops. Needs KAGGLE_API_TOKEN in the environment (never on argv).
 Usage: python3 archive.py     (after bake.py)"""
 import json, os, shutil, subprocess, sys, tarfile, time
 import kaggle_mirror, publish, sources
@@ -92,8 +93,15 @@ def main():
         kaggle_mirror.mirror(slug, title, k, files)
     ready(slug)
     got = listed(slug) or {}
+    placedb = lambda f: f.split('/')[0] in ('release', 'api') or f in REL_FILES or f == 'LIMITATIONS.md'
     missing = sorted(f for f in want if f not in got); wrong = sorted(f for f in want if f in got and got[f] != want[f])
     extra = sorted(set(got) - set(want))
+    if exists:
+        # an archive made by an earlier bake of this release: PlaceDB's files are immutable per release and must match;
+        # our derived files differ by a few bytes between bakes, so the archive keeps its first bake's and HF the current
+        for f in [f for f in missing + wrong + extra if not placedb(f)]:
+            print(f'{slug}: {f}: Kaggle has {got.get(f)} bytes, this bake {want.get(f)} (the archive keeps its first bake)', file=sys.stderr)
+        missing, wrong, extra = ([f for f in x if placedb(f)] for x in (missing, wrong, extra))
     if missing or wrong or extra:                                      # never deleted or versioned here: a person decides
         sys.exit(f'{slug} ({"existed" if exists else "new"}) does not match this release: {len(missing)} missing {missing[:5]}, '
                  f'{len(wrong)} of another size {wrong[:5]}, {len(extra)} unexpected {extra[:5]}')
