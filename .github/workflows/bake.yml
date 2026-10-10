@@ -1,9 +1,10 @@
-# Bake and publish to Hugging Face (bake.py, publish.py). Manual only in the template: add a schedule in your copy, e.g.
-#   schedule:
-#     - cron: '30 19 * * *'          # 03:30 HKT daily
+# Mirror the current PlaceDB release to Kaggle (archive.py, one dataset per release) and its map files to Hugging Face
+# (publish.py), weekly. A run whose release is already published stops after the first request.
 # Each run commits status/last-run.json: GitHub turns schedules off after 60 days with no commits.
 name: bake
 on:
+  schedule:
+    - cron: '0 22 * * 4'           # Thursdays 22:00 UTC
   workflow_dispatch:
     inputs:
       force:
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   bake:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 330
     env:
       PIPELINE_DATA: ${{ github.workspace }}/data
     steps:
@@ -27,31 +28,47 @@ jobs:
         with:
           python-version: '3.14'
           cache: pip
-      - run: pip install -r requirements.txt
-      # downloads kept between runs (restore and save are split so the cache is saved even when publish fails)
-      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6.1.0
+      - run: pip install -r requirements.txt && sudo apt-get update -q
+      # tippecanoe 2.79.0 from source, as world-airports: apt's 2.49 drops features
+      - id: tip
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830   # v4.3.0
         with:
-          path: data/cache
-          key: cache-${{ github.run_id }}
-          restore-keys: cache-
+          path: /opt/tippecanoe
+          key: tippecanoe-2.79.0-ubuntu-24.04
+      - if: steps.tip.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get install -y -q libsqlite3-dev zlib1g-dev
+          git clone -q https://github.com/felt/tippecanoe /tmp/tip && git -C /tmp/tip checkout -q 68ab8dcc229f95b8b25877697d5e8d66783af503
+          make -C /tmp/tip -j"$(nproc)" PREFIX=/opt/tippecanoe && sudo make -C /tmp/tip install PREFIX=/opt/tippecanoe
+      - run: echo /opt/tippecanoe/bin >> "$GITHUB_PATH"
+      # no download cache: a release is about 2.5 GB, and a run with no new release downloads nothing
       - name: bake
-        run: python bake.py
-      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9   # v6.1.0
-        if: always()
-        with:
-          path: data/cache
-          key: cache-${{ github.run_id }}
+        id: bake
+        run: set -o pipefail; mkdir -p status && python bake.py | tee status/last-run.json
+      # the release is about 2.5 GB, held three times over (mirror, Kaggle upload, the download that verifies it): make room
+      - if: steps.bake.outputs.skip != 'true'
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h "$GITHUB_WORKSPACE"
+      # Kaggle first and not allowed to fail: HF replaces the previous release only once Kaggle holds this one, verified
+      - name: archive to Kaggle
+        if: steps.bake.outputs.skip != 'true'
+        env:
+          KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
+          PUBLISH_FORCE: ${{ inputs.force && '1' || '0' }}
+        run: python archive.py
       - name: publish
+        if: steps.bake.outputs.skip != 'true'
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
           PUBLISH_FORCE: ${{ inputs.force && '1' || '0' }}
-        run: set -o pipefail; mkdir -p status && python publish.py | tee status/last-run.json   # git keeps no empty folder: mkdir first
-      # Kaggle mirror of everything published (Helen's account). Its own step, allowed to fail: never blocks Hugging Face.
-      - name: mirror to Kaggle
+        run: set -o pipefail; python publish.py | tee status/last-run.json
+      # the small, versioned index of releases (Helen's account). Its own step, allowed to fail.
+      - name: index to Kaggle
+        if: steps.bake.outputs.skip != 'true'
         continue-on-error: true
         env:
           KAGGLE_API_TOKEN: ${{ secrets.KAGGLE_API_TOKEN }}
-        run: python kaggle_mirror.py
+        run: |
+          python kaggle_mirror.py helenkwok/world-gazetteer "AlreadyOpen: world gazetteer" data/out releases.json index.json manifest.json
       - name: keep-alive commit
         run: |
           git config user.name 'github-actions[bot]'

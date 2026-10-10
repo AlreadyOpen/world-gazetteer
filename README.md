@@ -1,46 +1,25 @@
-# pipeline-template
+# world-gazetteer
 
-The starting point for an [AlreadyOpen](https://github.com/AlreadyOpen) pipeline: a GitHub Action that bakes public data and
-publishes it to a Hugging Face dataset (versioned, for data tools) and bucket (overwritten in place, read by browsers with CORS
-and HTTP Range). Used by hk-transit, hk-buildings and world-skylines; `manifest.py`, `check.py` and `check.yml` are identical in
-all of them, so fix them here and copy them out.
+A mirror of [PlaceDB](https://placedb.org) ([mindstellar/location-data](https://github.com/mindstellar/location-data), CC0,
+built from Wikidata, CC0): every country, division and settlement, plus map files made from them. Checked weekly; a new
+PlaceDB release is archived whole on Kaggle (`helenkwok/world-gazetteer-<release>`, one dataset per release), and only once
+that copy is downloaded back and verified are the map files on Hugging Face
+([dataset](https://huggingface.co/datasets/alreadyopen/world-gazetteer), [bucket](https://huggingface.co/buckets/alreadyopen/world-gazetteer))
+replaced. Built from [pipeline-template](https://github.com/AlreadyOpen/pipeline-template). The files are listed in
+`hf/README.md`; PlaceDB's known gaps are in its [LIMITATIONS.md](https://github.com/mindstellar/location-data/blob/main/docs/LIMITATIONS.md).
 
-## Start a pipeline
+    COUNTRIES=HK,TW,PT python3 bake.py   # a test on a few countries (near/ left out); no COUNTRIES = everything (CI)
+    python3 archive.py                   # Kaggle: create the release's dataset, download it back, check every sha256
+    python3 publish.py                   # gate, then Hugging Face (HF_TOKEN); refuses a test bake or an unverified release
+    python3 check.py                     # data-free checks (CI)
 
-1. **Use this template** on GitHub, name the repo after its data (e.g. `hk-parking`).
-2. `sources.json`: every source with its owner, URL, licence link and the script that reads it.
-3. `bake.py`: write the outputs into `data/out/` and `index.json` with `built` and `counts`.
-4. `publish.py`: set `REPO`, `DATASET_FILES` and `BUCKET_FILES`. One file per source licence: never merge data under different
-   terms into one file.
-5. `hf/README.md`: the dataset card, crediting every owner in `sources.json` (`check.py` fails otherwise).
-6. `publish.py`: set `KAGGLE` (`helenkwok/<repo>` and a 6-50 character title). The Kaggle mirror takes everything published.
-7. `python check.py`, then set both secrets from their files (never echo a token):
-   `gh secret set HF_TOKEN -R AlreadyOpen/<repo> < "$HOME/Library/Application Support/alreadyopen/hf-write.key"` and
-   `gh secret set KAGGLE_API_TOKEN -R AlreadyOpen/<repo> < "$HOME/.kaggle/access_token"`. Add a schedule to
-   `.github/workflows/bake.yml` and run it once by hand.
+How PlaceDB publishes a release: `geo.mindstellar.com/releases/latest.json` names it; `releases/<version>/manifest.json`
+lists every country's `data/`, `json/` and `csv/` file with its sha256 and size; `api.placedb.org/v1/index.json` does the
+same for the API's 143,197 files (`ac/`, `cities/`, `iso/`, `near/`, `regions/`). The bake refuses any file whose sha256
+differs, and an API that is on a different release from the release files.
 
-## What comes with it
+The publish gate compares settlements per country with the last release and stops on a drop of more than 10% (or a country
+that disappears); a manual run's **force** box overrides it, after a look at PlaceDB's `changes.ndjson`. A run whose release
+is already on Hugging Face stops after one request.
 
-| File | Does |
-|---|---|
-| `manifest.py` | `manifest.json`: sha256 and size of every published file, the counts, the sources. The publish gate refuses (before any upload) when a count drops > 10%, a count or file disappears, or a file is empty; a manual run's **force** box overrides it |
-| `check.py`, `check.yml` | On every push, no data and no token: scripts compile, `sources.json` is complete, the card credits every owner and has `license_link`, the gate's self-test passes |
-| `kaggle_mirror.py` | After publish, uploads everything published to a public Kaggle dataset (`helenkwok/<repo>`), keeping folders (zipped, Kaggle unpacks them). Own step, allowed to fail. Kaggle cannot pull from Hugging Face itself: its Remote URL refuses HF's 302 redirects |
-| `bake.yml` | Pinned action SHAs; the download cache saved even when publish fails; a keep-alive commit (schedules stop after 60 days without commits) rebased before pushing |
-
-## Lessons (each cost a failed run once)
-
-- Don't push to a pipeline repo while its run is going: the run's keep-alive push is rejected.
-- Git keeps no empty folders: `mkdir -p` before writing into one.
-- Linux has a smaller CA store than macOS: a server that leaves out an intermediate certificate fails only on the runner
-  (hk-transit `mtr.py` bundles the missing one).
-- Install DuckDB extensions once before any parallel work (`INSTALL` races on a fresh runner).
-- An unquoted `: ` inside a workflow `run:` line makes the file invalid YAML, and GitHub silently drops its triggers
-  ("does not have 'workflow_dispatch' trigger"). `check.py` now parses every workflow.
-- Kaggle stores `.gz` files decompressed (`bus/10_10.json.gz` arrives as `bus/10_10.json`, at its full size), so the
-  Kaggle copy's names and sha256 differ from `manifest.json`; say so in the card if the pipeline publishes `.gz`.
-- `python publish.py | tee …` reports `tee`'s exit status, so a publish the gate refused showed as a green run. The publish
-  step starts with `set -o pipefail` (found on hk-property, 2026-10-10).
-- Never put client or private data in a pipeline repo: they are public, and so is their history.
-
-Code: Apache-2.0. Data: under each source's own terms, listed in `sources.json`.
+Code: Apache-2.0. Data: CC0 (PlaceDB, Wikidata), see `sources.json`.

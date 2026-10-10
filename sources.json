@@ -1,3 +1,5 @@
 [
- {"name": "Example dataset (replace)", "owner": "Example Owner", "url": "https://example.org/data.csv", "licence": "https://example.org/terms", "used_by": "bake.py"}
+ {"name": "PlaceDB release (manifest.json, LICENSE, data/json/csv per country, changes)", "owner": "PlaceDB (mindstellar/location-data)", "url": "https://geo.mindstellar.com/releases/latest.json", "licence": "https://creativecommons.org/publicdomain/zero/1.0/", "used_by": "bake.py"},
+ {"name": "PlaceDB API files of the same release (index.json, countries, regions, cities, iso, near, ac prefix files)", "owner": "PlaceDB (mindstellar/location-data)", "url": "https://api.placedb.org/v1/index.json", "licence": "https://creativecommons.org/publicdomain/zero/1.0/", "used_by": "bake.py"},
+ {"name": "PlaceDB LIMITATIONS.md at the release's tag", "owner": "PlaceDB (mindstellar/location-data)", "url": "https://github.com/mindstellar/location-data/blob/main/docs/LIMITATIONS.md", "licence": "https://creativecommons.org/publicdomain/zero/1.0/", "used_by": "bake.py"}
 ]
