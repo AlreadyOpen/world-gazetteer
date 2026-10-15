@@ -1,1 +1,1 @@
-{"dataset": "https://huggingface.co/datasets/alreadyopen/world-gazetteer", "bucket": "https://huggingface.co/buckets/alreadyopen/world-gazetteer", "release": "2026-09-20T1335Z", "kaggle": "https://www.kaggle.com/datasets/helenkwok/world-gazetteer-2026-09-20t1335z", "prefix_files": 31440, "deleted": 0, "totals": {"places": 1671395, "places_distinct_ids": 1671374, "places_tiles_deepest_zoom": 1671374, "divisions": 4314}}
+{"checked": "2026-10-15T23:57:36", "release": "2026-09-20T1335Z", "skipped": "already published"}
